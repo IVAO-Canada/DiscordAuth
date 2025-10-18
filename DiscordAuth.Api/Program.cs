@@ -11,7 +11,6 @@ builder.Services.AddActivatedSingleton<MigrationService>();
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
-app.UseHttpsRedirection();
 
 app.MapGet("/register/{divisionName}", Ivao.RedirectAsync);
 app.MapGet("/ivao-callback", Ivao.CallbackAsync).WithName("ivao-callback");
