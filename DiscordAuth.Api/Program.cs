@@ -4,7 +4,6 @@ using DiscordAuth.Database;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
 Context.Register(builder);
 builder.Services.AddActivatedSingleton<MigrationService>();
@@ -12,11 +11,6 @@ builder.Services.AddActivatedSingleton<MigrationService>();
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-	app.MapOpenApi();
-
 app.UseHttpsRedirection();
 
 app.MapGet("/register/{divisionName}", Ivao.RedirectAsync);
