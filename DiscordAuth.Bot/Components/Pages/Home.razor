@@ -1,0 +1,262 @@
+﻿@page "/"
+@using DiscordAuth.Database
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<Context> dbFactory
+@inject BotService bot
+@inject HttpClient http
+
+<PageTitle>Discord Auth Division Management</PageTitle>
+
+<table>
+	<thead>
+		<tr>
+			<th scope="col">Division</th>
+			<th scope="col">Snowflake</th>
+			<th scope="col">Visitor</th>
+			<th scope="col">GCA</th>
+			<th scope="col">Member</th>
+			<th scope="col">Div Staff</th>
+			<th scope="col">HQ Staff</th>
+		</tr>
+	</thead>
+	<tbody>
+		@if (_dbLock.CurrentCount > 0)
+		{
+			@foreach (var div in db.Divisions)
+			{
+				DisplayDivisionRoles roles = new(div);
+
+				<tr>
+					<th scope="row"><input @bind="div.Division" list="divisions" /></th>
+					<td>@div.Snowflake</td>
+					<td><input @bind="roles.Visitor" placeholder="No visitor role" /></td>
+					<td><input @bind="roles.Gca" placeholder="No GCA role" /></td>
+					<td><input @bind="roles.Member" placeholder="No member role" /></td>
+					<td><input @bind="roles.Staff" placeholder="No division staff role" /></td>
+					<td><input @bind="roles.HqStaff" placeholder="No HQ staff role" /></td>
+				</tr>
+
+				<tr class="info">
+					<th scope="row">@(divisions.FirstOrDefault(d => d.id.Equals(div.Division, StringComparison.InvariantCultureIgnoreCase))?.name ?? "")</th>
+					<td>@(bot.GetUserCount(div.Snowflake) is int memCount ? $"{memCount} users" : "")</td>
+					<td>
+						@{
+							{
+								if (GetRoleMention(div.Snowflake, div.VisitorRole, "") is string mention && !string.IsNullOrWhiteSpace(mention))
+								{
+									<span class="mention">@mention</span>
+								}
+							}
+						}
+					</td>
+					<td>
+						@{
+							{
+								if (GetRoleMention(div.Snowflake, div.GcaRole, GetRoleMention(div.Snowflake, div.VisitorRole, "")) is string mention && !string.IsNullOrWhiteSpace(mention))
+								{
+									<span class="mention">@mention</span>
+								}
+							}
+						}
+					</td>
+					<td>
+						@{
+							{
+								if (GetRoleMention(div.Snowflake, div.MemberRole, "") is string mention && !string.IsNullOrWhiteSpace(mention))
+								{
+									<span class="mention">@mention</span>
+								}
+							}
+						}
+					</td>
+					<td>
+						@{
+							{
+								if (GetRoleMention(div.Snowflake, div.StaffRole, GetRoleMention(div.Snowflake, div.MemberRole, "")) is string mention && !string.IsNullOrWhiteSpace(mention))
+								{
+									<span class="mention">@mention</span>
+								}
+							}
+						}
+					</td>
+					<td>
+						@{
+							{
+								if (GetRoleMention(div.Snowflake, div.HqStaffRole, "") is string mention && !string.IsNullOrWhiteSpace(mention))
+								{
+									<span class="mention">@mention</span>
+								}
+							}
+						}
+					</td>
+				</tr>
+
+				if (_dbLock.CurrentCount is 0)
+					break;
+			}
+		}
+
+		<tr>
+			<td colspan="3">
+				@if (Valid)
+				{
+					<button class="btn save" @onclick="SaveAsync">Save</button>
+				}
+				else
+				{
+					<button class="btn save" disabled>Save</button>
+				}
+			</td>
+			<td></td>
+			<td colspan="3">
+				@if (_dbLock.CurrentCount is not 0 && db.ChangeTracker.HasChanges())
+				{
+					<button class="btn cancel" @onclick="CancelAsync">Cancel</button>
+				}
+				else
+				{
+					<button class="btn cancel" disabled>Cancel</button>
+				}
+			</td>
+		</tr>
+	</tbody>
+</table>
+
+<datalist id="divisions">
+	@foreach (Api.Ivao.DivisionInfo div in divisions)
+	{
+		<option value="@div.id"></option>
+	}
+</datalist>
+
+@code {
+	SemaphoreSlim _dbLock = new(1);
+	Context db = default!;
+	Api.Ivao.DivisionInfo[] divisions = [];
+	readonly Dictionary<ulong, string> _roleMentions = [];
+
+	bool Valid
+	{
+		get
+		{
+			if (_dbLock.CurrentCount is 0)
+				return false;
+			else
+				return db.ChangeTracker.HasChanges() &&
+						db.Divisions.AsEnumerable().All(d => string.IsNullOrWhiteSpace(d.Division) || divisions.Length is 0 || divisions.Any(div => div.id.Equals(d.Division, StringComparison.InvariantCultureIgnoreCase)));
+		}
+	}
+
+	string GetRoleMention(ulong guildId, ulong? roleId, string defaultRole)
+	{
+		if (roleId is null)
+			return defaultRole;
+
+		if (_roleMentions.TryGetValue(roleId.Value, out string? mention))
+			return mention;
+
+		if (bot.Connected && bot.GetMention(guildId, roleId.Value) is string botMention)
+		{
+			_roleMentions[roleId.Value] = botMention;
+			return botMention;
+		}
+
+		return defaultRole;
+	}
+
+	protected override async Task OnParametersSetAsync()
+	{
+		db = await dbFactory.CreateDbContextAsync();
+	}
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (!firstRender)
+			return;
+
+		divisions = await Api.Ivao.GetDivisionsAsync(http);
+
+		if (divisions.Length is not 0)
+			await InvokeAsync(StateHasChanged);
+	}
+
+	async Task SaveAsync()
+	{
+		await _dbLock.WaitAsync();
+		try
+		{
+			// Hide the UI.
+			await InvokeAsync(StateHasChanged);
+
+			// Make the changes.
+			await db.SaveChangesAsync();
+		}
+		finally
+		{
+			_dbLock.Release();
+		}
+
+		// Re-show the UI.
+		await InvokeAsync(StateHasChanged);
+	}
+
+	async Task CancelAsync()
+	{
+		await _dbLock.WaitAsync();
+		try
+		{
+			// Reset all changes.
+			foreach (var change in db.ChangeTracker.Entries<DivisionGuild>())
+			{
+				if (change.State is EntityState.Added)
+					change.State = EntityState.Detached;
+				else if (change.State is not EntityState.Unchanged)
+				{
+					if (change.State is EntityState.Modified)
+						change.CurrentValues.SetValues(change.OriginalValues);
+
+					change.State = EntityState.Unchanged;
+				}
+			}
+		}
+		finally
+		{
+			_dbLock.Release();
+		}
+
+		await InvokeAsync(StateHasChanged);
+	}
+
+	class DisplayDivisionRoles(DivisionGuild div)
+	{
+		public string Visitor
+		{
+			get => div.VisitorRole?.ToString() ?? "";
+			set => div.VisitorRole = (string.IsNullOrWhiteSpace(value) || !ulong.TryParse(value, out ulong role)) ? null : role;
+		}
+
+		public string Gca
+		{
+			get => div.GcaRole?.ToString() ?? "";
+			set => div.GcaRole = (string.IsNullOrWhiteSpace(value) || !ulong.TryParse(value, out ulong role)) ? null : role;
+		}
+
+		public string Member
+		{
+			get => div.MemberRole?.ToString() ?? "";
+			set => div.MemberRole = (string.IsNullOrWhiteSpace(value) || !ulong.TryParse(value, out ulong role)) ? null : role;
+		}
+
+		public string Staff
+		{
+			get => div.StaffRole?.ToString() ?? "";
+			set => div.StaffRole = (string.IsNullOrWhiteSpace(value) || !ulong.TryParse(value, out ulong role)) ? null : role;
+		}
+
+		public string HqStaff
+		{
+			get => div.HqStaffRole?.ToString() ?? "";
+			set => div.HqStaffRole = (string.IsNullOrWhiteSpace(value) || !ulong.TryParse(value, out ulong role)) ? null : role;
+		}
+	}
+}

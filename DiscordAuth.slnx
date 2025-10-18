@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="DiscordAuth.Api/DiscordAuth.Api.csproj" />
+  <Project Path="DiscordAuth.AppHost/DiscordAuth.AppHost.csproj" />
+  <Project Path="DiscordAuth.Bot/DiscordAuth.Bot.csproj" />
+  <Project Path="DiscordAuth.Database/DiscordAuth.Database.csproj" />
+  <Project Path="DiscordAuth.ServiceDefaults/DiscordAuth.ServiceDefaults.csproj" />
+</Solution>

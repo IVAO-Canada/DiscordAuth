@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="3.18.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DiscordAuth.Api\DiscordAuth.Api.csproj" />
+    <ProjectReference Include="..\DiscordAuth.Database\DiscordAuth.Database.csproj" />
+    <ProjectReference Include="..\DiscordAuth.ServiceDefaults\DiscordAuth.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>
